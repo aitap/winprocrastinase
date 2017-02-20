@@ -2,15 +2,16 @@
 #include <windows.h>
 #include <psapi.h>
 #include <processthreadsapi.h>
+#include <stdbool.h>
 
-BOOL get_window_info(HWND window, char* class, size_t class_size, char* text, size_t text_size, char* path, size_t path_size) {
+bool get_window_info(HWND window, char* class, size_t class_size, char* text, size_t text_size, char* path, size_t path_size) {
 	if (!GetClassName(window, class, class_size))
-		return FALSE;
+		return false;
 
 	if (!GetWindowText(window, text, text_size))
 		*text = 0;
 
-	BOOL ret = FALSE;
+	BOOL ret = false;
 	{
 		DWORD thread_id = GetWindowThreadProcessId(window,NULL); 
 		HANDLE thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id);
@@ -23,7 +24,7 @@ BOOL get_window_info(HWND window, char* class, size_t class_size, char* text, si
 		if (!process) goto end;
 
 		GetProcessImageFileName(process, path, path_size);
-		ret = TRUE;
+		ret = true;
 	end:
 		if (process) CloseHandle(process);
 		if (thread) CloseHandle(thread);

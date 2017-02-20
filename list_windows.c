@@ -9,7 +9,7 @@ static BOOL CALLBACK print_window_info(HWND window, LPARAM whitelist) {
 		return TRUE;
 
 	char window_class[2048] = {0}, window_text[2048] = {0}, module_path[2048] = {0};
-	if (get_window_info(window, window_class, 2048, window_text, 2048, module_path, 2048) != TRUE)
+	if (!get_window_info(window, window_class, 2048, window_text, 2048, module_path, 2048))
 		abort();
 
 	fprintf(
