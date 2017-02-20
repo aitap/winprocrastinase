@@ -5,7 +5,7 @@
 static void CALLBACK foreground_changed(HWINEVENTHOOK ev_hook, DWORD event, HWND new_foreground, LONG object, LONG child, DWORD thread, DWORD time) {
 	char executable[2048] = {0}, text[2048] = {0}, class[2048] = {0};
 
-	if (get_window_info(new_foreground, class, 2048, text, 2048, path, 2048) != TRUE)
+	if (get_window_info(new_foreground, class, 2048, text, 2048, executable, 2048) != TRUE)
 		return;
 
 	///
@@ -38,6 +38,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	return msg.wParam; 
 }
 /*
-PlaySound(MAKEINTRESOURCE(WHATEVER), GetModuleHandle(NULL), SND_RESOURCE);
+PlaySound("threat", GetModuleHandle(NULL), SND_RESOURCE);
 */
 
