@@ -10,4 +10,7 @@ if(${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
 endif()
 
 add_executable(create_whitelist list_windows.c)
-target_link_libraries(create_whitelist psapi)
+target_link_libraries(create_whitelist proc_info)
+
+add_executable(control WIN32 controller.c)
+target_link_libraries(control proc_info)
