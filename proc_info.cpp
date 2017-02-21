@@ -1,5 +1,6 @@
 #define _WIN32_WINNT 0x601
 
+#include <cstdio>
 #include <memory>
 
 #include <windows.h>
@@ -12,7 +13,7 @@ typedef std::unique_ptr<std::remove_pointer<HANDLE>::type,decltype(&CloseHandle)
 std::string get_window_process_path(HWND window) {
 	using std::runtime_error;
 
-	std::string path;
+	char path[2048];
 
 	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
 	raii_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
@@ -25,10 +26,8 @@ std::string get_window_process_path(HWND window) {
 	if (!process) throw runtime_error("OpenProcess returned "+GetLastError());
 
 	DWORD size_dword = 2048;
-	path.reserve(size_dword);
-	if (!QueryFullProcessImageName(process.get(), 0/*win32 format*/, &path[0], &size_dword))
+	if (!QueryFullProcessImageName(process.get(), 0/*win32 format*/, path, &size_dword))
 		throw runtime_error("QueryFullProcessImageName returned "+GetLastError());
-	path.shrink_to_fit();
 
-	return path;
+	return path; // implicit std::string()
 }
