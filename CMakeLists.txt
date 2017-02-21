@@ -17,12 +17,12 @@ add_custom_command(
 )
 add_custom_target(alarm_wav DEPENDS alarm.wav)
 
-add_library(proc_info proc_info.cpp)
-target_link_libraries(proc_info)
+add_library(win_utils win_utils.cpp)
+target_link_libraries(win_utils)
 
 add_executable(create_whitelist list_windows.cpp)
-target_link_libraries(create_whitelist proc_info)
+target_link_libraries(create_whitelist win_utils)
 
 add_executable(control WIN32 controller.cpp snd.rc)
-target_link_libraries(control proc_info winmm)
+target_link_libraries(control win_utils winmm)
 add_dependencies(control alarm_wav)

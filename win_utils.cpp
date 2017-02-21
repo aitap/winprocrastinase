@@ -6,7 +6,7 @@
 #include <windows.h>
 #include <processthreadsapi.h>
 
-#include "proc_info.hpp"
+#include "win_utils.hpp"
 
 typedef std::unique_ptr<std::remove_pointer<HANDLE>::type,decltype(&CloseHandle)> raii_handle;
 
@@ -30,4 +30,18 @@ std::string get_window_process_path(HWND window) {
 		throw runtime_error("QueryFullProcessImageName returned "+GetLastError());
 
 	return path; // implicit std::string()
+}
+
+bool kill_window_process(HWND window) {
+	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
+	raii_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
+	if (!thread) return false;
+
+	DWORD pid = GetProcessIdOfThread(thread.get());
+	if (!pid) return false;
+
+	raii_handle process{OpenProcess(PROCESS_TERMINATE, FALSE, pid),&CloseHandle};
+	if (!process) return false;
+
+	return TerminateProcess(process.get(), 1);
 }

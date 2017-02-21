@@ -3,7 +3,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <windows.h>
-#include "proc_info.hpp"
+#include "win_utils.hpp"
 
 extern "C" BOOL CALLBACK print_window_info(HWND window, LPARAM whitelist) {
 	if(!IsWindowVisible(window) || !GetWindowTextLength(window))

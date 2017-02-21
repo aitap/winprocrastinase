@@ -6,7 +6,11 @@
 #include <windows.h>
 #include <shellapi.h>
 
-#include "proc_info.hpp"
+#include "win_utils.hpp"
+
+// constants
+const static float work_per_play = 2; // how many times more time user should spend working to afford same amount of play time
+const static uint32_t alarm_timeout = 60*1000; // time between alarm and projected (credit=0), ms
 
 // horrible global variables
 static uint32_t credit = 3600*1000; // remaining non-work time, ms; user is given 1 hour for free at startup
