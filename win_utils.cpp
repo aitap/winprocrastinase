@@ -1,6 +1,5 @@
 #define _WIN32_WINNT 0x601
 
-#include <cstdio>
 #include <memory>
 
 #include <windows.h>
@@ -25,11 +24,11 @@ std::string get_window_process_path(HWND window) {
 	raii_handle process{OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid),&CloseHandle};
 	if (!process) throw runtime_error("OpenProcess returned "+GetLastError());
 
-	DWORD size_dword = 2048;
-	if (!QueryFullProcessImageName(process.get(), 0/*win32 format*/, path, &size_dword))
+	DWORD size = 2048;
+	if (!QueryFullProcessImageName(process.get(), 0/*win32 format*/, path, &size))
 		throw runtime_error("QueryFullProcessImageName returned "+GetLastError());
 
-	return path; // implicit std::string()
+	return std::string(path);
 }
 
 bool kill_window_process(HWND window) {

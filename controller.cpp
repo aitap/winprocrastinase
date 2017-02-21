@@ -22,7 +22,13 @@ UINT_PTR kill_timer = 0; // timer to kill of the offender
 extern "C" void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	KillTimer(hwnd, timer);
 	kill_timer = 0;
-	kill_window_process(GetForegroundWindow());
+	HWND target = GetForegroundWindow();
+	try {
+		if (!whitelist.count(get_window_process_path(target))) // one last chance
+			kill_window_process(target);
+	} catch (std::runtime_error & ex) {
+		// oh well, what could we do
+	}
 }
 
 extern "C" void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
