@@ -12,6 +12,7 @@
 static uint32_t credit = 3600*1000; // remaining non-work time, ms; user is given 1 hour for free at startup
 static bool good = true; // whether the user is good for now
 static float work_per_play = 2; // how many times more time user should spend working to afford same amount of play time
+std::set<std::string> whitelist;
 
 extern "C" void CALLBACK foreground_changed(HWINEVENTHOOK ev_hook, DWORD event, HWND new_foreground, LONG object, LONG child, DWORD thread, DWORD time) {
 	try {
@@ -34,12 +35,19 @@ extern "C" void CALLBACK foreground_changed(HWINEVENTHOOK ev_hook, DWORD event, 
 // TODO: bool is_whitelisted(HWND)
 
 int main(int argc, char** argv) {
+	using std::runtime_error;
 	if (argc != 2) {
 		MessageBox(NULL,"Please pass path to whitelist.txt as the only command line argument.",NULL,0);
 		return 1;
 	}
 
-	// TODO: read an std::set or maybe std::hash of strings
+	{
+		std::ifstream fh(argv[1],std::ios::in);
+		if (!fh) throw runtime_error(std::string("Error opening ")+argv[1]);
+		for (std::string path; std::getline(fh, path);) {
+			whitelist.insert(path);
+		}
+	}
 
 	std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&UnhookWinEvent)> hook{SetWinEventHook(
 		EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
