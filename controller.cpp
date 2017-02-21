@@ -1,5 +1,11 @@
+#include <fstream>
+#include <set>
+#include <stdexcept>
+#include <memory>
+
 #include <windows.h>
 #include <shellapi.h>
+
 #include "proc_info.hpp"
 
 // horrible global variables
@@ -35,15 +41,15 @@ int main(int argc, char** argv) {
 
 	// TODO: read an std::set or maybe std::hash of strings
 
-	HWINEVENTHOOK hook = SetWinEventHook(
+	std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&UnhookWinEvent)> hook{SetWinEventHook(
 		EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
 		NULL,
 		foreground_changed,
 		0,
 		0,
 		WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
-	);
-	if (!hook) abort();
+	),&UnhookWinEvent};
+	if (!hook) throw runtime_error(std::string("SetWinEventHook error "+GetLastError()));
 
 	MSG msg;
 	BOOL ret;
@@ -55,8 +61,6 @@ int main(int argc, char** argv) {
 			DispatchMessage(&msg);
 		}
 	}
-
-	UnhookWinEvent(hook);
 
 	return 0;
 }
