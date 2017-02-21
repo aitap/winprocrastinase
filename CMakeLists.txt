@@ -23,6 +23,6 @@ target_link_libraries(win_utils)
 add_executable(create_whitelist list_windows.cpp)
 target_link_libraries(create_whitelist win_utils)
 
-add_executable(control WIN32 controller.cpp snd.rc)
+add_executable(control  controller.cpp snd.rc)
 target_link_libraries(control win_utils winmm)
 add_dependencies(control alarm_wav)
