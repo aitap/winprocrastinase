@@ -1,6 +1,7 @@
 #define _WIN32_WINNT 0x601
 #include <string>
 #include <fstream>
+#include <stdexcept>
 #include <windows.h>
 #include "proc_info.hpp"
 
@@ -15,6 +16,7 @@ extern "C" BOOL CALLBACK print_window_info(HWND window, LPARAM whitelist) {
 
 int main() {
 	std::ofstream whitelist("whitelist.txt", std::ios::out|std::ios::app);
+	if (!whitelist) throw std::runtime_error("Error opening whitelist.txt");
 	EnumWindows(print_window_info, (LPARAM)&whitelist);
 	return 0;
 }
