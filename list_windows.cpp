@@ -14,7 +14,7 @@ extern "C" BOOL CALLBACK print_window_info(HWND window, LPARAM whitelist) {
 }
 
 int main() {
-	std::ofstream whitelist("whitelist.txt", std::ios::out|std::ios::ate);
+	std::ofstream whitelist("whitelist.txt", std::ios::out|std::ios::app);
 	EnumWindows(print_window_info, (LPARAM)&whitelist);
 	return 0;
 }
