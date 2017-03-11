@@ -24,7 +24,7 @@ UINT_PTR alarm_timer = 0; // timer to alarm sound
 UINT_PTR kill_timer = 0; // timer to kill of the offender
 raii_hook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
 
-bool is_title_whitelisted(std::string& title) {
+bool is_title_whitelisted(const std::string& title) {
 	for (std::string & substr: title_whitelist) {
 		if (title.find(substr) != std::string::npos) return true;
 	}
@@ -36,10 +36,9 @@ extern "C" void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, 
 	kill_timer = 0;
 	HWND target = GetForegroundWindow();
 	try {
-		std::string title = get_window_title(target);
 		if (
 			!file_whitelist.count(get_window_process_path(target))
-			&& !is_title_whitelisted(title)
+			&& !is_title_whitelisted(get_window_title(target))
 		) // one last chance
 			kill_window_process(target);
 	} catch (std::runtime_error & ex) {
@@ -75,9 +74,7 @@ void set_bad(void) {
 extern "C" void CALLBACK title_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND window, LONG object, LONG child, DWORD thread, DWORD time) {
 	if (window != GetForegroundWindow()) return; // we're only interested in the foreground window, until it changes
-	std::string title = get_window_title(window);
-
-	if (is_title_whitelisted(title))
+	if (is_title_whitelisted(get_window_title(window)))
 		set_good();
 	else
 		set_bad();
@@ -110,8 +107,7 @@ extern "C" void CALLBACK foreground_changed
 		set_good();
 	} else { // path is non-whitelisted
 		try {
-			std::string title = get_window_title(new_foreground);
-			if (is_title_whitelisted(title)) { // but the title is
+			if (is_title_whitelisted(get_window_title(new_foreground))) { // but the title is
 				set_good();
 
 				DWORD tid, pid;
