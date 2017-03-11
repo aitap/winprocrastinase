@@ -31,6 +31,18 @@ std::string get_window_process_path(HWND window) {
 	return std::string(path);
 }
 
+
+std::string get_window_title(HWND window) {
+	using std::runtime_error;
+
+	char title[2048];
+
+	if (!GetWindowText(window, title, 2048))
+		throw runtime_error("GetWindowText returned "+GetLastError());
+
+	return std::string(title);
+}
+
 bool kill_window_process(HWND window) {
 	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
 	raii_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
