@@ -5,10 +5,11 @@
 #include <windows.h>
 #include "win_utils.hpp"
 
-extern "C" BOOL CALLBACK print_window_info(HWND window, LPARAM whitelist) {
+extern "C" BOOL CALLBACK print_window_info(HWND window, LPARAM whitelists) {
+	std::ofstream* wl = (std::ofstream*)whitelists;
 	if(IsWindowVisible(window) && GetWindowTextLength(window)) {
-		*(((std::ofstream**)whitelist)[0]) << get_window_process_path(window) << std::endl;
-		*(((std::ofstream**)whitelist)[1]) << get_window_title(window) << std::endl;
+		wl[0] << get_window_process_path(window) << std::endl;
+		wl[1] << get_window_title(window) << std::endl;
 	}
 
 	return TRUE;
@@ -22,6 +23,6 @@ int main() {
 	if ( !whitelists[0] || !whitelists[1])
 		throw std::runtime_error("Error opening whitelists");
 
-	EnumWindows(print_window_info, (LPARAM)&whitelists);
+	EnumWindows(print_window_info, (LPARAM)&whitelists[0]);
 	return 0;
 }
