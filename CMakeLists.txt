@@ -24,5 +24,11 @@ add_executable(create_whitelist list_windows.cpp)
 target_link_libraries(create_whitelist win_utils)
 
 add_executable(control WIN32 controller.cpp snd.rc)
+
+if (${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC")
+	# we use ordinary int main(int argc, char** argv) for GUI app
+	set_target_properties (control PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup")
+endif()
+
 target_link_libraries(control win_utils winmm)
 add_dependencies(control alarm_wav)
