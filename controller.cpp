@@ -128,7 +128,7 @@ extern "C" void CALLBACK foreground_changed
 	}
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
 	using std::runtime_error;
 	if (argc != 3) {
 		MessageBox(NULL,"Please pass path to file_whitelist.txt and title_whitelist.txt as the only command line arguments.",NULL,0);
@@ -173,4 +173,7 @@ int main(int argc, char** argv) {
 	}
 
 	return 0;
+} catch (std::runtime_error & e) {
+	MessageBox(NULL,e.what(),"Unhandled exception",MB_ICONERROR);
+	return 1;
 }
