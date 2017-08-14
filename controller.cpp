@@ -9,7 +9,8 @@
 
 #include "win_utils.hpp"
 
-typedef std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&UnhookWinEvent)> raii_hook;
+typedef std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&UnhookWinEvent)> u_wineventhook;
+typedef std::unique_ptr<std::remove_pointer<HKEY>::type,decltype(&RegCloseKey)> u_key;
 
 // constants
 const static float work_per_play = 2; // how many times more time user should spend working to afford same amount of play time
@@ -23,7 +24,7 @@ std::vector<std::string> title_whitelist; // set of window titles allowed to be 
 // TODO: only white- and blacklist, defaulting to no action
 UINT_PTR alarm_timer = 0; // timer to alarm sound
 UINT_PTR kill_timer = 0; // timer to kill of the offender
-raii_hook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
+u_wineventhook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
 
 bool is_title_whitelisted(const std::string& title) {
 	for (std::string & substr: title_whitelist) {
@@ -153,7 +154,7 @@ int main(int argc, char** argv) try {
 		}
 	}
 
-	raii_hook foreground_hook{SetWinEventHook(
+	u_wineventhook foreground_hook{SetWinEventHook(
 		EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
 		NULL,
 		foreground_changed,

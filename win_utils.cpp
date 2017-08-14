@@ -7,7 +7,7 @@
 
 #include "win_utils.hpp"
 
-typedef std::unique_ptr<std::remove_pointer<HANDLE>::type,decltype(&CloseHandle)> raii_handle;
+typedef std::unique_ptr<std::remove_pointer<HANDLE>::type,decltype(&CloseHandle)> u_handle;
 
 std::string get_window_process_path(HWND window) {
 	using std::runtime_error;
@@ -15,13 +15,13 @@ std::string get_window_process_path(HWND window) {
 	char path[2048];
 
 	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
-	raii_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
+	u_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
 	if (!thread) throw runtime_error("OpenThread returned "+GetLastError());
 
 	DWORD pid = GetProcessIdOfThread(thread.get());
 	if (!pid) throw runtime_error("GetProcessIdOfThread returned "+GetLastError());
 
-	raii_handle process{OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid),&CloseHandle};
+	u_handle process{OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid),&CloseHandle};
 	if (!process) throw runtime_error("OpenProcess returned "+GetLastError());
 
 	DWORD size = 2048;
@@ -45,13 +45,13 @@ std::string get_window_title(HWND window) {
 
 bool kill_window_process(HWND window) {
 	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
-	raii_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
+	u_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
 	if (!thread) return false;
 
 	DWORD pid = GetProcessIdOfThread(thread.get());
 	if (!pid) return false;
 
-	raii_handle process{OpenProcess(PROCESS_TERMINATE, FALSE, pid),&CloseHandle};
+	u_handle process{OpenProcess(PROCESS_TERMINATE, FALSE, pid),&CloseHandle};
 	if (!process) return false;
 
 	return TerminateProcess(process.get(), 1);
