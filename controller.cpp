@@ -116,6 +116,14 @@ void note_window_changes(HWND wnd) {
 	)*time_diff_ms;
 	// with overdrawn credit, set timeout to minimal possible
 	if (play_credit < USER_TIMER_MINIMUM) play_credit = USER_TIMER_MINIMUM;
+	RegSetValueEx(
+		(HKEY)persistent_play_credit.get(),
+		reg_value_name,
+		0,
+		REG_QWORD,
+		(const BYTE*)&play_credit,
+		sizeof(play_credit)
+	);
 
 	user_state = decide_window_role(wnd);
 
@@ -161,16 +169,19 @@ int main(int argc, char** argv) try {
 
 		persistent_play_credit.reset(key);
 	}
-	if (ERROR_SUCCESS != RegGetValue(
-		(HKEY)persistent_play_credit.get(),
-		nullptr,
-		reg_value_name,
-		RRF_RT_REG_QWORD,
-		nullptr,
-		&play_credit,
-		nullptr
-	))
-		play_credit = default_timeout;
+	{
+		DWORD play_credit_size = sizeof(play_credit); // oh well
+		if (ERROR_SUCCESS != RegGetValue(
+			(HKEY)persistent_play_credit.get(),
+			nullptr,
+			reg_value_name,
+			RRF_RT_REG_QWORD,
+			nullptr,
+			&play_credit,
+			&play_credit_size
+		))
+			play_credit = default_timeout;
+	}
 
 	prev_event_time = GetTickCount();
 	u_wineventhook foreground_hook{SetWinEventHook(
