@@ -11,17 +11,17 @@ std::string get_window_process_path(HWND window) {
 
 	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
 	u_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
-	if (!thread) throw runtime_error("OpenThread returned "+GetLastError());
+	if (!thread) throw runtime_error(std::string("OpenThread returned ")+std::to_string(GetLastError()));
 
 	DWORD pid = GetProcessIdOfThread(thread.get());
-	if (!pid) throw runtime_error("GetProcessIdOfThread returned "+GetLastError());
+	if (!pid) throw runtime_error(std::string("GetProcessIdOfThread returned ")+std::to_string(GetLastError()));
 
 	u_handle process{OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid),&CloseHandle};
-	if (!process) throw runtime_error("OpenProcess returned "+GetLastError());
+	if (!process) throw runtime_error(std::string("OpenProcess returned ")+std::to_string(GetLastError()));
 
 	DWORD size = 2048;
 	if (!QueryFullProcessImageName(process.get(), 0/*win32 format*/, path, &size))
-		throw runtime_error("QueryFullProcessImageName returned "+GetLastError());
+		throw runtime_error(std::string("QueryFullProcessImageName returned ")+std::to_string(GetLastError()));
 
 	return std::string(path);
 }
@@ -33,7 +33,7 @@ std::string get_window_title(HWND window) {
 	char title[2048];
 
 	if (!GetWindowText(window, title, 2048))
-		throw runtime_error("GetWindowText returned "+GetLastError());
+		throw runtime_error(std::string("GetWindowText returned ")+std::to_string(GetLastError()));
 
 	return std::string(title);
 }

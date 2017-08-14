@@ -200,7 +200,7 @@ int main(int argc, char** argv) try {
 		0,
 		WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
 	),&UnhookWinEvent};
-	if (!foreground_hook) throw runtime_error(std::string("SetWinEventHook error "+GetLastError()));
+	if (!foreground_hook) throw runtime_error(std::string("SetWinEventHook error ")+std::to_string(GetLastError()));
 
 	MSG msg;
 	BOOL ret;
