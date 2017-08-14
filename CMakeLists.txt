@@ -20,9 +20,6 @@ add_custom_target(alarm_wav DEPENDS alarm.wav)
 add_library(win_utils win_utils.cpp)
 target_link_libraries(win_utils)
 
-add_executable(create_whitelist list_windows.cpp)
-target_link_libraries(create_whitelist win_utils)
-
 add_executable(control WIN32 controller.cpp snd.rc)
 
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC")

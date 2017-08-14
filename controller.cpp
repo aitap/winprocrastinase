@@ -16,10 +16,11 @@ const static float work_per_play = 2; // how many times more time user should sp
 const static uint32_t alarm_timeout = 60*1000; // time between alarm and projected (credit=0), ms
 
 // horrible global variables
-int64_t play_credit = 3600*1000; // remaining non-work time, ms; user is given 1 hour for free at startup
+int64_t play_credit = 3600*1000; // remaining non-work time, ms; user is given 1 hour for free at startup; TODO: persistence via registry
 bool good = true; // whether the user is good for now
 std::set<std::string> file_whitelist; // set of paths allowed to be running indefinitely
 std::vector<std::string> title_whitelist; // set of window titles allowed to be running indefinitely
+// TODO: only white- and blacklist, defaulting to no action
 UINT_PTR alarm_timer = 0; // timer to alarm sound
 UINT_PTR kill_timer = 0; // timer to kill of the offender
 raii_hook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
@@ -31,7 +32,7 @@ bool is_title_whitelisted(const std::string& title) {
 	return false;
 }
 
-extern "C" void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
+void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	KillTimer(hwnd, timer);
 	kill_timer = 0;
 	HWND target = GetForegroundWindow();
@@ -46,7 +47,7 @@ extern "C" void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, 
 	}
 }
 
-extern "C" void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
+void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	KillTimer(hwnd, timer);
 	alarm_timer = 0;
 	PlaySound("threat", GetModuleHandle(NULL), SND_RESOURCE|SND_ASYNC);
@@ -71,7 +72,7 @@ void set_bad(void) {
 	alarm_timer = SetTimer(NULL, alarm_timer, play_credit, alarm_callback);
 }
 
-extern "C" void CALLBACK title_changed
+void CALLBACK title_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND window, LONG object, LONG child, DWORD thread, DWORD time) {
 	if (window != GetForegroundWindow()) return; // we're only interested in the foreground window, until it changes
 	if (is_title_whitelisted(get_window_title(window)))
@@ -80,7 +81,7 @@ extern "C" void CALLBACK title_changed
 		set_bad();
 }
 
-extern "C" void CALLBACK foreground_changed
+void CALLBACK foreground_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND new_foreground, LONG object, LONG child, DWORD thread, DWORD time) {
 	if (title_hook) // the window's changed, no reason to keep listening to title changes
 		title_hook.reset(nullptr);
@@ -130,6 +131,7 @@ extern "C" void CALLBACK foreground_changed
 
 int main(int argc, char** argv) try {
 	using std::runtime_error;
+	// TODO: assume the files to be in the working directory, relying on the user to create a proper shortcut
 	if (argc != 3) {
 		MessageBox(NULL,"Please pass path to file_whitelist.txt and title_whitelist.txt as the only command line arguments.",NULL,0);
 		return 1;
