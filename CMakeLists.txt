@@ -7,6 +7,7 @@ project(
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
 	add_compile_options(-std=c++11)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
 endif()
 
 set(ALARM_SOUND ${CMAKE_SOURCE_DIR}/awooga.mp3 CACHE FILEPATH "Path to alarm sound for the control application")
