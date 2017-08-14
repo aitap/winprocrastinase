@@ -153,7 +153,13 @@ int main(int argc, char** argv) try {
 	read_text_into("blacklist.txt",file_blacklist);
 	read_text_into("title_exceptions.txt",title_whitelist);
 
-	u_key persistent_play_credit{nullptr,&RegCloseKey};
+	for (const std::unordered_set<std::string> & set: {file_blacklist, file_whitelist})
+		for (const std::string & str: set) {
+			std::ifstream test(str);
+			if (!test)
+				throw runtime_error(std::string("Sanity check failed, file does not seem to exist: ") + str);
+		}
+
 	{
 		HKEY key;
 		if (ERROR_SUCCESS != RegCreateKeyEx(
