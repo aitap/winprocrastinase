@@ -1,4 +1,4 @@
-#include "win_utils.hpp"
+#include "win_utils.hpp" // defines _WIN32_WINNT, must be first
 
 #include <fstream>
 #include <unordered_set>
@@ -16,7 +16,7 @@ typedef std::unique_ptr<std::remove_pointer<HKEY>::type,decltype(&RegCloseKey)> 
 
 // constants
 const static float work_per_play = 2.; // how many times more time user should spend working to afford same amount of play time
-const static uint32_t alarm_timeout = 60*1000; // time between alarm and projected (credit=0), ms
+const static uint32_t alarm_timeout = 60*1000; // how much time to give between the alarm sound and killing the offending app
 const char* reg_value_name = "credit_left"; // name of the value used to store remaining time in the registry
 const int64_t default_timeout = 60*60*1000; // first hour is free (ms)
 
