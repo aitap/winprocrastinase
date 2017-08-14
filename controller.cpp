@@ -29,14 +29,21 @@ std::unordered_set<std::string> file_whitelist, file_blacklist, title_whitelist;
 UINT_PTR alarm_timer = 0; // timer to alarm sound
 UINT_PTR kill_timer = 0; // timer to kill of the offender
 u_wineventhook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
+u_key persistent_play_credit{nullptr,&RegCloseKey};
 
 user_state_t decide_window_role(HWND wnd) {
-	std::string path = get_window_process_path(wnd), title = get_window_title(wnd);
-	if (file_whitelist.count(path)) return user_state_t::work;
-	if (file_blacklist.count(path))
-		for (const std::string & substr: title_whitelist)
-			if (title.find(substr) != std::string::npos) return user_state_t::neutral; // absolved for now
-		return user_state_t::play;
+	try {
+		std::string path = get_window_process_path(wnd), title = get_window_title(wnd);
+		if (file_whitelist.count(path)) return user_state_t::work;
+		if (file_blacklist.count(path)) {
+			for (const std::string & substr: title_whitelist)
+				if (title.find(substr) != std::string::npos) return user_state_t::neutral; // absolved for now
+			return user_state_t::play;
+		}
+	} catch(std::runtime_error & ex) {
+		// whatever happened there could only mean that we don't have right for that
+	}
+	// falling through try or catch, we decide or at least assume neutral result
 	return user_state_t::neutral;
 }
 
