@@ -38,16 +38,17 @@ std::string get_window_title(HWND window) {
 	return std::string(title);
 }
 
-bool kill_window_process(HWND window) {
+void kill_window_process(HWND window) {
+	using std::runtime_error;
 	DWORD thread_id = GetWindowThreadProcessId(window,NULL);
 	u_handle thread{OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, thread_id),&CloseHandle};
-	if (!thread) return false;
+	if (!thread) throw runtime_error(std::string("OpenThread returned ")+std::to_string(GetLastError()));
 
 	DWORD pid = GetProcessIdOfThread(thread.get());
-	if (!pid) return false;
+	if (!pid) throw runtime_error(std::string("GetProcessIdOfThread returned ")+std::to_string(GetLastError()));
 
 	u_handle process{OpenProcess(PROCESS_TERMINATE, FALSE, pid),&CloseHandle};
-	if (!process) return false;
+	if (!process) throw runtime_error(std::string("OpenProcess returned ")+std::to_string(GetLastError()));
 
-	return TerminateProcess(process.get(), 1);
+	if (!TerminateProcess(process.get(), 1)) throw runtime_error(std::string("TerminateProcess returned ")+std::to_string(GetLastError()));
 }
