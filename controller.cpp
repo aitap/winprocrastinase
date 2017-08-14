@@ -1,3 +1,5 @@
+#include "win_utils.hpp"
+
 #include <fstream>
 #include <set>
 #include <vector>
@@ -7,17 +9,18 @@
 #include <windows.h>
 #include <shellapi.h>
 
-#include "win_utils.hpp"
-
+// NB: it might be a bad idea to leave such objects initialized with nullptr
 typedef std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&UnhookWinEvent)> u_wineventhook;
 typedef std::unique_ptr<std::remove_pointer<HKEY>::type,decltype(&RegCloseKey)> u_key;
 
 // constants
 const static float work_per_play = 2; // how many times more time user should spend working to afford same amount of play time
 const static uint32_t alarm_timeout = 60*1000; // time between alarm and projected (credit=0), ms
+const char* reg_value_name = "credit_left"; // name of the value used to store remaining time in the registry
+const int64_t default_timeout = 60*60*1000; // first hour is free (ms)
 
 // horrible global variables
-int64_t play_credit = 3600*1000; // remaining non-work time, ms; user is given 1 hour for free at startup; TODO: persistence via registry
+int64_t play_credit = 0; // to be filled in main
 bool good = true; // whether the user is good for now
 std::set<std::string> file_whitelist; // set of paths allowed to be running indefinitely
 std::vector<std::string> title_whitelist; // set of window titles allowed to be running indefinitely
@@ -154,6 +157,35 @@ int main(int argc, char** argv) try {
 		}
 	}
 
+	u_key persistent_play_credit{nullptr,&RegCloseKey};
+	{
+		HKEY key;
+		if (ERROR_SUCCESS != RegCreateKeyEx(
+			HKEY_CURRENT_USER,
+			"Software\\aitap\\winprocrastinase",
+			0,
+			nullptr,
+			REG_OPTION_NON_VOLATILE,
+			KEY_READ|KEY_WRITE,
+			nullptr,
+			&key,
+			nullptr // lpdwDisposition might be important
+		))
+			throw runtime_error("RegCreateKeyEx returned error");
+
+		persistent_play_credit.reset(key);
+	}
+	if (ERROR_SUCCESS != RegGetValue(
+		(HKEY)persistent_play_credit.get(),
+		nullptr,
+		reg_value_name,
+		RRF_RT_REG_QWORD,
+		nullptr,
+		&play_credit,
+		nullptr
+	))
+		play_credit = default_timeout;
+
 	u_wineventhook foreground_hook{SetWinEventHook(
 		EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
 		NULL,
@@ -174,6 +206,16 @@ int main(int argc, char** argv) try {
 			DispatchMessage(&msg);
 		}
 	}
+
+	if (ERROR_SUCCESS != RegSetValueEx(
+		(HKEY)persistent_play_credit.get(),
+		reg_value_name,
+		0,
+		REG_QWORD,
+		(const BYTE*)&play_credit,
+		sizeof(play_credit)
+	))
+		throw runtime_error("RegSetValueEx returned error");
 
 	return 0;
 } catch (std::runtime_error & e) {

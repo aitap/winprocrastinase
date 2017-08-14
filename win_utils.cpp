@@ -1,11 +1,6 @@
-#define _WIN32_WINNT 0x601
-
-#include <memory>
-
-#include <windows.h>
-#include <processthreadsapi.h>
-
 #include "win_utils.hpp"
+#include <memory>
+#include <processthreadsapi.h>
 
 typedef std::unique_ptr<std::remove_pointer<HANDLE>::type,decltype(&CloseHandle)> u_handle;
 
