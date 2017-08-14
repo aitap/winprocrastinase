@@ -141,7 +141,9 @@ void note_window_changes(HWND wnd) {
 template<typename T> void read_text_into(const char* from, T& to) {
 	std::ifstream fh(from, std::ios::in);
 	if (!fh) throw std::runtime_error(std::string("Error opening ") + from);
-	std::copy(std::istream_iterator<std::string>(fh), std::istream_iterator<std::string>(), std::inserter(to,to.end()));
+	std::string line;
+	while (std::getline(fh, line))
+		to.insert(line);
 }
 
 int main(int argc, char** argv) try {
