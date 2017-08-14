@@ -17,15 +17,12 @@ add_custom_command(
 )
 add_custom_target(alarm_wav DEPENDS alarm.wav)
 
-add_library(win_utils win_utils.cpp)
-target_link_libraries(win_utils)
-
-add_executable(control WIN32 controller.cpp snd.rc)
+add_executable(control WIN32 controller.cpp win_utils.cpp snd.rc)
 
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC")
 	# we use ordinary int main(int argc, char** argv) for GUI app
 	set_target_properties (control PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup")
 endif()
 
-target_link_libraries(control win_utils winmm)
+target_link_libraries(control winmm)
 add_dependencies(control alarm_wav)

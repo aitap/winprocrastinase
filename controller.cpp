@@ -1,10 +1,11 @@
 #include "win_utils.hpp"
 
 #include <fstream>
-#include <set>
+#include <unordered_set>
 #include <vector>
 #include <stdexcept>
 #include <memory>
+#include <iterator>
 
 #include <windows.h>
 #include <shellapi.h>
@@ -14,26 +15,29 @@ typedef std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&Unhoo
 typedef std::unique_ptr<std::remove_pointer<HKEY>::type,decltype(&RegCloseKey)> u_key;
 
 // constants
-const static float work_per_play = 2; // how many times more time user should spend working to afford same amount of play time
+const static float work_per_play = 2.; // how many times more time user should spend working to afford same amount of play time
 const static uint32_t alarm_timeout = 60*1000; // time between alarm and projected (credit=0), ms
 const char* reg_value_name = "credit_left"; // name of the value used to store remaining time in the registry
 const int64_t default_timeout = 60*60*1000; // first hour is free (ms)
 
 // horrible global variables
-int64_t play_credit = 0; // to be filled in main
-bool good = true; // whether the user is good for now
-std::set<std::string> file_whitelist; // set of paths allowed to be running indefinitely
-std::vector<std::string> title_whitelist; // set of window titles allowed to be running indefinitely
-// TODO: only white- and blacklist, defaulting to no action
+DWORD prev_event_time = 0; // to be filled in main
+int64_t play_credit = 0; // same
+enum class user_state_t { neutral, work, play } user_state = user_state_t::neutral; // what the user is doing right now
+// set of paths causing credit to increase or decrease; set of window title substrings absolving blacklisted apps
+std::unordered_set<std::string> file_whitelist, file_blacklist, title_whitelist;
 UINT_PTR alarm_timer = 0; // timer to alarm sound
 UINT_PTR kill_timer = 0; // timer to kill of the offender
 u_wineventhook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
 
-bool is_title_whitelisted(const std::string& title) {
-	for (std::string & substr: title_whitelist) {
-		if (title.find(substr) != std::string::npos) return true;
-	}
-	return false;
+user_state_t decide_window_role(HWND wnd) {
+	std::string path = get_window_process_path(wnd), title = get_window_title(wnd);
+	if (file_whitelist.count(path)) return user_state_t::work;
+	if (file_blacklist.count(path))
+		for (const std::string & substr: title_whitelist)
+			if (title.find(substr) != std::string::npos) return user_state_t::neutral; // absolved for now
+		return user_state_t::play;
+	return user_state_t::neutral;
 }
 
 void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
@@ -41,13 +45,10 @@ void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) 
 	kill_timer = 0;
 	HWND target = GetForegroundWindow();
 	try {
-		if (
-			!file_whitelist.count(get_window_process_path(target))
-			&& !is_title_whitelisted(get_window_title(target))
-		) // one last chance
+		if (decide_window_role(target) == user_state_t::play) // just in case
 			kill_window_process(target);
 	} catch (std::runtime_error & ex) {
-		// oh well, what could we do
+		// a number of things could happen there, most of which mean we don't have enough rights. oh well
 	}
 }
 
@@ -58,8 +59,7 @@ void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now)
 	kill_timer = SetTimer(NULL, kill_timer, alarm_timeout, kill_callback);
 }
 
-void set_good(void) {
-	good = true;
+void disarm(void) {
 	if (kill_timer) {
 		KillTimer(NULL, kill_timer);
 		kill_timer = 0;
@@ -71,91 +71,70 @@ void set_good(void) {
 	PlaySound(NULL,0,0);
 }
 
-void set_bad(void) {
-	good = false;
+void arm(void) {
 	alarm_timer = SetTimer(NULL, alarm_timer, play_credit, alarm_callback);
 }
 
+void note_window_changes(HWND);
 void CALLBACK title_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND window, LONG object, LONG child, DWORD thread, DWORD time) {
-	if (window != GetForegroundWindow()) return; // we're only interested in the foreground window, until it changes
-	if (is_title_whitelisted(get_window_title(window)))
-		set_good();
-	else
-		set_bad();
+	if (window != GetForegroundWindow()) return; // we're only interested in the foreground window until it changes
+	note_window_changes(window);
 }
 
 void CALLBACK foreground_changed
-(HWINEVENTHOOK ev_hook, DWORD event, HWND new_foreground, LONG object, LONG child, DWORD thread, DWORD time) {
-	if (title_hook) // the window's changed, no reason to keep listening to title changes
-		title_hook.reset(nullptr);
+(HWINEVENTHOOK ev_hook, DWORD event, HWND wnd, LONG object, LONG child, DWORD thread, DWORD time) {
+	DWORD tid, pid;
+	tid = GetWindowThreadProcessId(wnd, &pid);
+	// watch for changes in the title
+	title_hook.reset(SetWinEventHook(
+		EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
+		NULL,
+		title_changed,
+		pid, tid,
+		WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
+	));
+	note_window_changes(wnd);
+}
 
-	static auto prev_event = GetTickCount(); // remember time of previous event
-	auto time_diff_ms = GetTickCount() - prev_event; // adjust credit using (now-previous)
-	prev_event = GetTickCount(); // and remember what time is it now for the next time
+void note_window_changes(HWND wnd) {
+	auto time_diff_ms = GetTickCount() - prev_event_time; // to adjust credit
+	prev_event_time = GetTickCount(); // and remember what time is it now for the next time
 
 	// account for whatever was happening until window switch
-	play_credit += (good ? 1/work_per_play : -1)*time_diff_ms;
+	play_credit += (
+		user_state == user_state_t::work ? 1/work_per_play
+		: user_state == user_state_t::play ? -1
+		: 0
+	)*time_diff_ms;
 	// with overdrawn credit, set timeout to minimal possible
 	if (play_credit < USER_TIMER_MINIMUM) play_credit = USER_TIMER_MINIMUM;
 
-	// prepare the bookkeeping for updating next time
-	try {
-		std::string path = get_window_process_path(new_foreground);
-		good = file_whitelist.count(path);
-	} catch (std::runtime_error & ex) {
-		// whatever happened, let's presume innocence
-		good = true;
-	}
+	user_state = decide_window_role(wnd);
 
-	if (good) { // path is whitelisted
-		set_good();
-	} else { // path is non-whitelisted
-		try {
-			if (is_title_whitelisted(get_window_title(new_foreground))) { // but the title is
-				set_good();
-
-				DWORD tid, pid;
-				tid = GetWindowThreadProcessId(new_foreground, &pid);
-				title_hook.reset(SetWinEventHook( // but watch for changes in the title
-					EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
-					NULL,
-					title_changed,
-					pid, tid,
-					WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
-				));
-			} else {
-				set_bad();
-			}
-		} catch (std::runtime_error & ex) { // still presume innocence
-			set_good();
-		}
+	switch (user_state) {
+	case user_state_t::work:
+	case user_state_t::neutral:
+		disarm();
+		break;
+	case user_state_t::play:
+		arm();
+		break;
 	}
+}
+
+template<typename T> void read_text_into(const char* from, T& to) {
+	std::ifstream fh(from, std::ios::in);
+	if (!fh) throw std::runtime_error(std::string("Error opening ") + from);
+	std::copy(std::istream_iterator<std::string>(fh), std::istream_iterator<std::string>(), std::inserter(to,to.end()));
 }
 
 int main(int argc, char** argv) try {
 	using std::runtime_error;
-	// TODO: assume the files to be in the working directory, relying on the user to create a proper shortcut
-	if (argc != 3) {
-		MessageBox(NULL,"Please pass path to file_whitelist.txt and title_whitelist.txt as the only command line arguments.",NULL,0);
-		return 1;
-	}
 
-	{
-		std::ifstream fh(argv[1],std::ios::in);
-		if (!fh) throw runtime_error(std::string("Error opening ")+argv[1]);
-		for (std::string path; std::getline(fh, path);) {
-			file_whitelist.insert(path);
-		}
-	}
-
-	{
-		std::ifstream fh(argv[2],std::ios::in);
-		if (!fh) throw runtime_error(std::string("Error opening ")+argv[2]);
-		for (std::string path; std::getline(fh, path);) {
-			title_whitelist.push_back(path);
-		}
-	}
+	read_text_into("whitelist.txt",file_whitelist);
+	read_text_into("blacklist.txt",file_blacklist);
+	read_text_into("title_exceptions.txt",title_whitelist);
 
 	u_key persistent_play_credit{nullptr,&RegCloseKey};
 	{
@@ -186,6 +165,7 @@ int main(int argc, char** argv) try {
 	))
 		play_credit = default_timeout;
 
+	prev_event_time = GetTickCount();
 	u_wineventhook foreground_hook{SetWinEventHook(
 		EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
 		NULL,
