@@ -149,6 +149,10 @@ template<typename T> void read_text_into(const char* from, T& to) {
 int main(int argc, char** argv) try {
 	using std::runtime_error;
 
+	u_handle self_mutex {CreateMutex(nullptr,TRUE,"Local\\aitap_WinProcrastinase"),&CloseHandle};
+	if (GetLastError() == ERROR_ALREADY_EXISTS) throw runtime_error("Another copy of WinProcrastinase seems to be already running (can't obtain mutex)");
+	if (!self_mutex) throw runtime_error("CreateMutex failed");
+
 	read_text_into("whitelist.txt",file_whitelist);
 	read_text_into("blacklist.txt",file_blacklist);
 	read_text_into("title_exceptions.txt",title_whitelist);

@@ -1,8 +1,5 @@
 #include "win_utils.hpp"
-#include <memory>
 #include <processthreadsapi.h>
-
-typedef std::unique_ptr<std::remove_pointer<HANDLE>::type,decltype(&CloseHandle)> u_handle;
 
 std::string get_window_process_path(HWND window) {
 	using std::runtime_error;
