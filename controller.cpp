@@ -19,6 +19,7 @@ const static float work_per_play = 2.; // how many times more time user should s
 const static uint32_t alarm_timeout = 60*1000; // how much time to give between the alarm sound and killing the offending app
 const char* reg_value_name = "credit_left"; // name of the value used to store remaining time in the registry
 const int64_t default_timeout = 60*60*1000; // first hour is free (ms)
+const DWORD idle_timeout = 60*1000; // if last input was more than a minute ago we declare the user idle and stop awarding points
 
 // horrible global variables
 DWORD prev_event_time = 0; // to be filled in main
@@ -32,9 +33,16 @@ u_wineventhook title_hook{nullptr,&UnhookWinEvent}; // hook on window title chan
 u_key persistent_play_credit{nullptr,&RegCloseKey};
 
 user_state_t decide_window_role(HWND wnd) {
+	bool idle = false;
+	{
+		LASTINPUTINFO lii = {sizeof(LASTINPUTINFO), 0};
+		if (GetLastInputInfo(&lii)) { // we get to check for idle user
+			idle = GetTickCount() - lii.dwTime > idle_timeout;
+		}
+	}
 	try {
 		std::string path = get_window_process_path(wnd), title = get_window_title(wnd);
-		if (file_whitelist.count(path)) return user_state_t::work;
+		if (file_whitelist.count(path)) return idle ? user_state_t::neutral : user_state_t::work;
 		if (file_blacklist.count(path)) {
 			for (const std::string & substr: title_whitelist)
 				if (title.find(substr) != std::string::npos) return user_state_t::neutral; // absolved for now
@@ -46,6 +54,8 @@ user_state_t decide_window_role(HWND wnd) {
 	// falling through try or catch, we decide or at least assume neutral result
 	return user_state_t::neutral;
 }
+
+void note_window_changes(HWND);
 
 void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	KillTimer(hwnd, timer);
@@ -66,6 +76,10 @@ void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now)
 	kill_timer = SetTimer(NULL, kill_timer, alarm_timeout, kill_callback);
 }
 
+void CALLBACK check_idle(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
+	note_window_changes(GetForegroundWindow());
+}
+
 void disarm(void) {
 	if (kill_timer) {
 		KillTimer(NULL, kill_timer);
@@ -82,7 +96,6 @@ void arm(void) {
 	alarm_timer = SetTimer(NULL, alarm_timer, play_credit, alarm_callback);
 }
 
-void note_window_changes(HWND);
 void CALLBACK title_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND window, LONG object, LONG child, DWORD thread, DWORD time) {
 	if (window != GetForegroundWindow()) return; // we're only interested in the foreground window until it changes
@@ -205,6 +218,10 @@ int main(int argc, char** argv) try {
 		WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
 	),&UnhookWinEvent};
 	if (!foreground_hook) throw runtime_error(std::string("SetWinEventHook error ")+std::to_string(GetLastError()));
+
+	// XXX: I don't want to kill this timer, so I leak its handle
+	// also, this isn't a very precise way to determine whether the user is idle
+	SetTimer(NULL, 0, idle_timeout/2, check_idle);
 
 	MSG msg;
 	BOOL ret;
