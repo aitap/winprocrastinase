@@ -1,12 +1,13 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.7.2)
 project(
 	Procrastinase
 	VERSION 0.0.1
 	LANGUAGES CXX
 )
 
+set(CMAKE_CXX_STANDARD 11)
+
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-	add_compile_options(-std=c++11)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
 endif()
 
