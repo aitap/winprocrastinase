@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -fmax-errors=1")
 endif()
 
 set(ALARM_SOUND ${CMAKE_SOURCE_DIR}/awooga.mp3 CACHE FILEPATH "Path to alarm sound for the control application")

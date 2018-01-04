@@ -1,5 +1,6 @@
 #include "win_utils.hpp" // defines _WIN32_WINNT, must be first
 
+#include <algorithm>
 #include <fstream>
 #include <unordered_set>
 #include <vector>
@@ -25,25 +26,27 @@ const DWORD idle_timeout = 60*1000; // if last input was more than a minute ago 
 DWORD prev_event_time = 0; // to be filled in main
 int64_t play_credit = 0; // same
 enum class user_state_t { neutral, work, play } user_state = user_state_t::neutral; // what the user is doing right now
-// set of paths causing credit to increase or decrease; set of window title substrings absolving blacklisted apps
-std::unordered_set<std::string> file_whitelist, file_blacklist, title_whitelist;
+// sets of paths causing credit to increase or decrease; set of window title substrings absolving blacklisted apps
+std::unordered_set<std::string> title_whitelist;
+std::unordered_set<BY_HANDLE_FILE_INFORMATION> file_whitelist, file_blacklist;
 UINT_PTR alarm_timer = 0; // timer to alarm sound
 UINT_PTR kill_timer = 0; // timer to kill of the offender
-u_wineventhook title_hook{nullptr,&UnhookWinEvent}; // hook on window title changes
-u_key persistent_play_credit{nullptr,&RegCloseKey};
+hwineventhook title_hook = nullptr; // hook on window title changes
+hkey persistent_play_credit = nullptr;
 
-user_state_t decide_window_role(HWND wnd) {
+static user_state_t decide_window_role(HWND wnd) {
 	bool idle = false;
 	{
 		LASTINPUTINFO lii = {sizeof(LASTINPUTINFO), 0};
 		if (GetLastInputInfo(&lii)) { // we get to check for idle user
-			idle = GetTickCount() - lii.dwTime > idle_timeout;
+			idle = (GetTickCount() - lii.dwTime) > idle_timeout;
 		}
 	}
 	try {
 		std::string path = get_window_process_path(wnd), title = get_window_title(wnd);
-		if (file_whitelist.count(path)) return idle ? user_state_t::neutral : user_state_t::work;
-		if (file_blacklist.count(path)) {
+		BY_HANDLE_FILE_INFORMATION exe = get_file_info(path.c_str());
+		if (file_whitelist.count(exe)) return idle ? user_state_t::neutral : user_state_t::work;
+		if (file_blacklist.count(exe)) {
 			for (const std::string & substr: title_whitelist)
 				if (title.find(substr) != std::string::npos) return user_state_t::neutral; // absolved for now
 			return user_state_t::play;
@@ -55,9 +58,9 @@ user_state_t decide_window_role(HWND wnd) {
 	return user_state_t::neutral;
 }
 
-void note_window_changes(HWND);
+static void note_window_changes(HWND);
 
-void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
+static void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	KillTimer(hwnd, timer);
 	kill_timer = 0;
 	HWND target = GetForegroundWindow();
@@ -69,18 +72,18 @@ void CALLBACK kill_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) 
 	}
 }
 
-void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
+static void CALLBACK alarm_callback(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	KillTimer(hwnd, timer);
 	alarm_timer = 0;
-	PlaySound("threat", GetModuleHandle(NULL), SND_RESOURCE|SND_ASYNC);
-	kill_timer = SetTimer(NULL, kill_timer, alarm_timeout, kill_callback);
+	PlaySound("threat", GetModuleHandle(NULL), SND_RESOURCE|SND_ASYNC|SND_LOOP);
+	if (!kill_timer) kill_timer = SetTimer(NULL, kill_timer, alarm_timeout, kill_callback);
 }
 
-void CALLBACK check_idle(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
+static void CALLBACK check_idle(HWND hwnd, UINT message, UINT_PTR timer, DWORD now) {
 	note_window_changes(GetForegroundWindow());
 }
 
-void disarm(void) {
+static void disarm(void) {
 	if (kill_timer) {
 		KillTimer(NULL, kill_timer);
 		kill_timer = 0;
@@ -92,32 +95,32 @@ void disarm(void) {
 	PlaySound(NULL,0,0);
 }
 
-void arm(void) {
-	alarm_timer = SetTimer(NULL, alarm_timer, play_credit, alarm_callback);
+static void arm(void) {
+	if (!alarm_timer) alarm_timer = SetTimer(NULL, alarm_timer, play_credit, alarm_callback);
 }
 
-void CALLBACK title_changed
+static void CALLBACK title_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND window, LONG object, LONG child, DWORD thread, DWORD time) {
 	if (window != GetForegroundWindow()) return; // we're only interested in the foreground window until it changes
 	note_window_changes(window);
 }
 
-void CALLBACK foreground_changed
+static void CALLBACK foreground_changed
 (HWINEVENTHOOK ev_hook, DWORD event, HWND wnd, LONG object, LONG child, DWORD thread, DWORD time) {
 	DWORD tid, pid;
 	tid = GetWindowThreadProcessId(wnd, &pid);
 	// watch for changes in the title
-	title_hook.reset(SetWinEventHook(
+	title_hook = SetWinEventHook(
 		EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
 		NULL,
 		title_changed,
 		pid, tid,
 		WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
-	));
+	);
 	note_window_changes(wnd);
 }
 
-void note_window_changes(HWND wnd) {
+static void note_window_changes(HWND wnd) {
 	auto time_diff_ms = GetTickCount() - prev_event_time; // to adjust credit
 	prev_event_time = GetTickCount(); // and remember what time is it now for the next time
 
@@ -130,7 +133,7 @@ void note_window_changes(HWND wnd) {
 	// with overdrawn credit, set timeout to minimal possible
 	if (play_credit < USER_TIMER_MINIMUM) play_credit = USER_TIMER_MINIMUM;
 	RegSetValueEx(
-		(HKEY)persistent_play_credit.get(),
+		persistent_play_credit,
 		reg_value_name,
 		0,
 		REG_QWORD,
@@ -151,31 +154,33 @@ void note_window_changes(HWND wnd) {
 	}
 }
 
-template<typename T> void read_text_into(const char* from, T& to) {
+template<typename T, typename U> static void read_text_into(const char* from, T& to, U action) {
 	std::ifstream fh(from, std::ios::in);
 	if (!fh) throw std::runtime_error(std::string("Error opening ") + from);
 	std::string line;
-	while (std::getline(fh, line))
-		to.insert(line);
+	while (std::getline(fh, line)) {
+		// ltrim
+		line.erase(line.begin(), std::find_if(line.begin(), line.end(), [](int ch) {
+			return !std::isspace(ch);
+		}));
+		// rtrim
+		line.erase(std::find_if(line.rbegin(), line.rend(), [](int ch) {
+			return !std::isspace(ch);
+		}).base(), line.end());
+		if (!line.empty()) to.insert(action(std::move(line)));
+	}
 }
 
 int main(int argc, char** argv) try {
 	using std::runtime_error;
 
-	u_handle self_mutex {CreateMutex(nullptr,TRUE,"Local\\aitap_WinProcrastinase"),&CloseHandle};
+	handle self_mutex = CreateMutex(nullptr,TRUE,"Local\\aitap_WinProcrastinase");
 	if (GetLastError() == ERROR_ALREADY_EXISTS) throw runtime_error("Another copy of WinProcrastinase seems to be already running (can't obtain mutex)");
 	if (!self_mutex) throw runtime_error("CreateMutex failed");
 
-	read_text_into("whitelist.txt",file_whitelist);
-	read_text_into("blacklist.txt",file_blacklist);
-	read_text_into("title_exceptions.txt",title_whitelist);
-
-	for (const std::unordered_set<std::string> & set: {file_blacklist, file_whitelist})
-		for (const std::string & str: set) {
-			std::ifstream test(str);
-			if (!test)
-				throw runtime_error(std::string("Sanity check failed, file does not seem to exist: ") + str);
-		}
+	read_text_into("whitelist.txt",file_whitelist, [](const std::string && f){ return get_file_info(f.c_str()); });
+	read_text_into("blacklist.txt",file_blacklist, [](const std::string && f){ return get_file_info(f.c_str()); });
+	read_text_into("title_exceptions.txt",title_whitelist, [](const std::string && s){ return std::move(s); });
 
 	{
 		HKEY key;
@@ -192,12 +197,12 @@ int main(int argc, char** argv) try {
 		))
 			throw runtime_error("RegCreateKeyEx returned error");
 
-		persistent_play_credit.reset(key);
+		persistent_play_credit = key;
 	}
 	{
 		DWORD play_credit_size = sizeof(play_credit); // oh well
 		if (ERROR_SUCCESS != RegGetValue(
-			(HKEY)persistent_play_credit.get(),
+			persistent_play_credit,
 			nullptr,
 			reg_value_name,
 			RRF_RT_REG_QWORD,
@@ -209,14 +214,14 @@ int main(int argc, char** argv) try {
 	}
 
 	prev_event_time = GetTickCount();
-	u_wineventhook foreground_hook{SetWinEventHook(
+	hwineventhook foreground_hook = SetWinEventHook(
 		EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
 		NULL,
 		foreground_changed,
 		0,
 		0,
 		WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS
-	),&UnhookWinEvent};
+	);
 	if (!foreground_hook) throw runtime_error(std::string("SetWinEventHook error ")+std::to_string(GetLastError()));
 
 	// XXX: I don't want to kill this timer, so I leak its handle
@@ -235,7 +240,7 @@ int main(int argc, char** argv) try {
 	}
 
 	if (ERROR_SUCCESS != RegSetValueEx(
-		(HKEY)persistent_play_credit.get(),
+		persistent_play_credit,
 		reg_value_name,
 		0,
 		REG_QWORD,
