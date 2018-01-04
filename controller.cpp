@@ -11,8 +11,8 @@
 #include <shellapi.h>
 
 // NB: it might be a bad idea to leave such objects initialized with nullptr
-typedef std::unique_ptr<std::remove_pointer<HWINEVENTHOOK>::type,decltype(&UnhookWinEvent)> u_wineventhook;
-typedef std::unique_ptr<std::remove_pointer<HKEY>::type,decltype(&RegCloseKey)> u_key;
+using hwineventhook = hndl<HWINEVENTHOOK, decltype(&::UnhookWinEvent), &UnhookWinEvent>;
+using hkey = hndl<HKEY, decltype(&::RegCloseKey), &RegCloseKey>;
 
 // constants
 const static float work_per_play = 2.; // how many times more time user should spend working to afford same amount of play time
