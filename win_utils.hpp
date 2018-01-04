@@ -7,10 +7,11 @@
 template<typename T = HANDLE, typename U = decltype(&::CloseHandle), U V = &::CloseHandle>
 class hndl {
 	T val;
+	hndl& operator= (const hndl&) = delete;
 public:
 	hndl(T val_) : val(val_) {}
 	operator T() { return val; }
-	hndl operator= (T val_) {
+	hndl& operator= (T val_) {
 		this->~hndl();
 		val = val_;
 		return *this;
@@ -40,4 +41,4 @@ namespace std {
 			^ (hash<DWORD>()(bhfi.nFileIndexHigh) << 1);
 		}
 	};
-};
+}
