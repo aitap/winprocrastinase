@@ -8,8 +8,13 @@ template<typename T = HANDLE, typename U = decltype(&::CloseHandle), U V = &::Cl
 class hndl {
 	T val;
 	hndl& operator= (const hndl&) = delete;
+	hndl(const hndl&) = delete;
 public:
 	hndl(T val_) : val(val_) {}
+	hndl(hndl && other) {
+		val = other.val;
+		other.val = nullptr; // hope it's safe for whatever V there is
+	}
 	operator T() { return val; }
 	hndl& operator= (T val_) {
 		this->~hndl();
