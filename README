@@ -1,0 +1,21 @@
+How to use:
+
+Place paths to applications you'd want to limit your presence in (games,
+browsers) in blacklist.txt (one line per application). Place paths to
+the applications you should be working in (word processor? programming
+environment? you tell me) into whitelist.txt.
+
+If there's an exception in the blacklist you can distinguish by looking at
+the window title (for example, most websites are for fun, but you do work
+in Jupyter Notebook), place such substrings into title_exceptions.txt.
+
+Place them all together with controller.exe and place a shortcut to the latter
+into Startup. You will be earning points by providing input to applications
+in your whitelist and spending them by having applications from your blacklist
+active. Once the balance is overdrawn, siren will sound. After another small
+timeout the foreground application will be terminated.
+
+There's no interface to look at. Just keep working.
+
+You'll need CMake and ffmpeg to build the application. The latter is used to
+decode the alarm sound into form suitable for WAVE resource.
